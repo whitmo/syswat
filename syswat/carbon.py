@@ -29,7 +29,6 @@ class Emitter(util.Actor):
     def recv(self, message):
         if isinstance(message, list):
             message = "\n".join(message)
-            import pdb;pdb.set_trace()
         if not message.endswith('\n'):
             message = message + '\n'
         self.sock.sendall(message)
