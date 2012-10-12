@@ -21,7 +21,7 @@ class Emitter(util.Actor):
         self.host = host
         self.port = port
         self.sock = socket()
-        Actor.__init__(self)
+        util.Actor.__init__(self)
 
     def begin(self):
         self.sock.connect((self.host, self.port))
