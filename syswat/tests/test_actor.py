@@ -9,5 +9,5 @@ def test_actor():
     at = ActorTest()
     at.start()
     at.inbox.put('WAT')
-    gevent.sleep(0.001)
+    gevent.sleep(0.1)
     assert 'WAT' in at.state
