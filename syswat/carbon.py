@@ -192,10 +192,11 @@ class SuperPIDCollector(PIDCollector):
         for pid, name, uptime in procinfo:
             try:
                 proc = psutil.Process(pid)
+                yield self.to_proc_info(proc, super_name=name, super_uptime=uptime)
             except psutil.NoSuchProcess(pid):
                 logger.debug("NoSuchProcess(%s)", pid)
                 continue
-            yield self.to_proc_info(proc, super_name=name, super_uptime=uptime)
+
             
 
 
