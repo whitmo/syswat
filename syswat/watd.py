@@ -78,7 +78,7 @@ class CarbonWatD(object):
             logger.info("starting fake carbon server %s:%s", args.chost, args.cport)
             srv = cls.faux_carbon(args.cport)
             srv.start()
-            
+        watd.logging_setup()
         logger.info("cwatd emitting to %s:%s", args.chost, args.cport)
         watd.run()
 
