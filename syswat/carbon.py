@@ -7,10 +7,13 @@ from operator import attrgetter
 from statlib import stats
 from supervisor.xmlrpc import SupervisorTransport
 import gevent
+import logging
 import psutil
 import stuf
 import time
 import xmlrpclib
+
+logger = logging.getLogger(__name__)
 
 
 class Emitter(util.Actor):
@@ -187,7 +190,11 @@ class SuperPIDCollector(PIDCollector):
                     for pi in self.sapi.getAllProcessInfo())
 
         for pid, name, uptime in procinfo:
-            proc = psutil.Process(pid)
+            try:
+                proc = psutil.Process(pid)
+            except psutil.NoSuchProcess(pid):
+                logger.debug("NoSuchProcess(%s)", pid)
+                continue
             yield self.to_proc_info(proc, super_name=name, super_uptime=uptime)
             
 
