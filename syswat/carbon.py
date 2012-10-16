@@ -101,10 +101,11 @@ class MetricFormatter(object):
         of None, and return mean if any values are left.
         """
         getter = self.op[attr]
-        res = (getter(x) for x in values if not  getter(x) is None)
+        res = (getter(x) for x in values if not getter(x) is None)
         if func:
             res = (func(x) for x in res if not func(x) is None)
         res = tuple(res)
+        logger.debug("%s:%s", attr, res)
         res = res and stats.mean(res) or 0.0
         return res
         
@@ -116,7 +117,9 @@ class MetricFormatter(object):
         amf = partial(self.amf, proclist)
         fmt = partial(tmplt.format, amf('time'), prefix, appuser)
         yield fmt('procs_running', len(tuple(proclist)))
-        yield fmt('cpu_percent', amf('cpu_perc'))
+        cpup = amf('cpu_perc')
+        if cpup > 0.0:
+            yield fmt('cpu_percent', cpup)
         yield fmt('memory_percent', amf('mem_perc'))
         yield fmt('connections', amf('cnxs', func=len))
 
@@ -128,6 +131,14 @@ class PIDCollector(Collector):
     limit = 5
     metric_out = staticmethod(MetricFormatter().out)
     get_username = attrgetter('username')
+    fields = ['username',
+              'get_memory_info',
+              'get_memory_percent',
+              'get_cpu_percent',
+              'get_cpu_times',
+              'name',
+              'status',
+              'get_connections']
 
     @property
     def pid_info(self):
@@ -144,10 +155,13 @@ class PIDCollector(Collector):
 
     @staticmethod
     def to_proc_info(proc, **kw):
+        proc.get_cpu_percent(.25) # sacrifice chicken
         raw = proc.as_dict()
         raw['time'] = time.time()
         raw.update(kw)
         out = stuf.stuf(raw)
+        if out.cpu_percent == None or out.cpu_percent == 0.0: 
+            out.cpu_percent = proc.get_cpu_percent(0.5)
         return out
 
     @staticmethod
@@ -175,6 +189,8 @@ class SuperPIDCollector(PIDCollector):
                  prefix="server.sys", period=0.5):
         Collector.__init__(self, outbox, prefix, period)
         self.url = url
+        self.procs = {}
+
 
     def begin(self):
         self.xmlrpc = xmlrpclib.ServerProxy('http://127.0.0.1', # will always be local
@@ -186,17 +202,24 @@ class SuperPIDCollector(PIDCollector):
         """
         Return process info for only processes managed by supervisorctl
         """
-        procinfo = ((pi['pid'], pi['name'], pi['now'] - pi['start']) \
-                    for pi in self.sapi.getAllProcessInfo())
-
+        procinfo = [(pi['pid'], pi['name'], pi['now'] - pi['start']) \
+                    for pi in self.sapi.getAllProcessInfo() if pi['pid'] > 0]
+        
         for pid, name, uptime in procinfo:
+            proc = self.procs.get(pid, None)
             try:
-                proc = psutil.Process(pid)
+                if proc is None:
+                    logger.info('add %s' %pid)
+                    proc = self.procs[pid] = psutil.Process(pid)
                 yield self.to_proc_info(proc, super_name=name, super_uptime=uptime)
             except psutil.NoSuchProcess:
-                logger.debug("NoSuchProcess(%s)", pid)
+                logger.info("NoSuchProcess(%s)", pid)
                 continue
 
-            
+        for pid in set(self.procs.keys()) - set([pid for pid, _, _ in procinfo]):
+            logger.info('drop %s', pid)
+            del self.procs[pid]
+
+        
 
 
